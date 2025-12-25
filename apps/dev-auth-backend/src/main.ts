@@ -22,7 +22,7 @@ connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const MOCK_MODE = process.env.MOCK_MODE === 'true' || true; // Default to true for now as requested
+// MOCK_MODE Removed per user request
 
 // Middleware
 app.use(cors());
@@ -80,67 +80,103 @@ app.post('/api/command', async (req, res) => {
   let status: 'success' | 'failed' | 'pending' = 'pending';
 
   try {
-    if (MOCK_MODE) {
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+    // Live Automation Integration
+    // Standardize to use 127.0.0.1 to avoid Node.js localhost resolution delays/errors
+    const OS_SERVER_URL = 'http://127.0.0.1:8000/execute';
 
-      const lowerCmd = command.toLowerCase();
+    // Check if command is an automation command
+    const lowerCmd = command.toLowerCase();
 
-      // NEW: Live Automation Integration (Hybrid approach)
-      // If command starts with "open", try to hit the automation server
-      if (lowerCmd.startsWith('open')) {
-        try {
-          const appName = lowerCmd.replace('open', '').trim();
-          console.log(`⚡ Sending execution request to OS Layer: open_app ${appName}`);
+    // List of keywords that trigger OS automation
+    // Enhanced triggers list
+    const triggers = ['open', 'launch', 'run', 'start', 'close', 'terminate', 'set', 'schedule', 'what'];
+    // Almost everything should go to python for intelligence if it's not a simple UI command
+    // But for now keeping explicit triggers or 'always try'.
+    // Let's set it to ALWAYS try OS server first for 'smart' processing if we move logic there,
+    // but the current python script is `server.py` which only does basic exec.
+    // The user wants "Do not use mock data".
+    // So we will try to execute everything against the OS layer (or an AI layer if we had one connected there).
+    // The current OS layer `server.py` handles `open_app`.
+    // If the Python side has AI integration this is perfect.
+    // If not, we might fail on "hello".
+    // But per request "do not use mock data only make it as it can execute real system actions",
+    // we will strictly call the OS API.
 
-          const authResponse = await fetch('http://localhost:8000/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'open_app',
-              params: { app_name: appName }
-            })
-          });
+    console.log(`⚡ Sending execution request to OS Layer: ${OS_SERVER_URL} [${command}]`);
 
-          if (authResponse.ok) {
-            const data = await authResponse.json() as any;
-            executionResult = data;
-            status = 'success';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for AI processing
 
-            // Log to DB
-            await userService.logCommand(userId, command, 'os_automation', 'success', data);
+      // We pass the raw command now?
+      // The current python server expects { action: "open_app", params: {...} }
+      // We need to parse here or update Python to be smarter.
+      // Given constraints, I will do basic parsing here for 'open' commands,
+      // and everything else we might just log or fail if Python can't handle it.
+      // Wait, the user wants "Real system actions".
 
-            return res.json({
-              command: { original: command, parsed: lowerCmd },
-              response: { text: `Executed: ${data.message}`, type: 'text' },
-              execution: { success: true, mode: 'live', details: data }
-            });
-          }
-        } catch (error) {
-          console.error("OS Automation Error:", error);
-          // Fallback to mock response
-        }
+      let action = 'unknown';
+      let appName = '';
+
+      if (lowerCmd.startsWith('open ') || lowerCmd.startsWith('start ')) {
+        action = 'open_app';
+        appName = lowerCmd.replace(/^(open|launch|run|start)\s+/, '').trim();
+      } else if (lowerCmd.includes('alarm') || lowerCmd.includes('timer')) {
+        // Example future expansion
+        action = 'set_alarm'; // server.py would need to handle this or generic execution
+      } else {
+        // For generic conversation/unsupported real actions, we can't really do "real system action" if the backend capability isn't there.
+        // But we definitely remove the fixed MOCK_RESPONSES.
+        // Fow now, default to trying to send it as a generic command if Python supports it, otherwise return error.
+        action = 'process_text'; // hypothetical new endpoint? 
+        // Startsafe: keep 'open_app' logic but fail if no match.
       }
 
-      let responseText = MOCK_RESPONSES['default'];
+      if (action === 'open_app') {
+        const authResponse = await fetch(OS_SERVER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: action,
+            params: { app_name: appName }
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-      if (lowerCmd.includes('hello') || lowerCmd.includes('hi')) responseText = MOCK_RESPONSES['hello'];
-      else if (lowerCmd.includes('status')) responseText = MOCK_RESPONSES['status'];
-      else if (lowerCmd.includes('chrome')) responseText = MOCK_RESPONSES['open chrome'];
-      else if (lowerCmd.includes('code')) responseText = MOCK_RESPONSES['open vs code'];
-      else if (lowerCmd.includes('time')) responseText = `Current core time is ${new Date().toLocaleTimeString()}`;
+        if (authResponse.ok) {
+          const data = await authResponse.json() as any;
+          executionResult = data;
+          status = 'success';
 
-      // Log Mock Execution
-      await userService.logCommand(userId, command, 'mock_response', 'success', { response: responseText });
+          await userService.logCommand(userId, command, 'os_automation', 'success', data);
 
-      return res.json({
-        command: { original: command, parsed: lowerCmd },
-        response: { text: responseText, type: 'text' },
-        execution: { success: true, mode: 'mock' }
+          return res.json({
+            command: { original: command, parsed: lowerCmd },
+            response: { text: `Executed: ${data.message}`, type: 'text' },
+            execution: { success: true, mode: 'live', details: data }
+          });
+        } else {
+          throw new Error("OS Layer returned error");
+        }
+      } else {
+        // Non-OS command (like "Hello")
+        // Since User said "do not use mock data", we effectively have no "Real" handling for "Hello" unless we call an LLM.
+        // Assuming the simple scope here is "Actions". 
+        // I will return a message saying "Action not supported" rather than a Fake hello.
+        return res.json({
+          command: { original: command },
+          response: { text: "Command not recognized as a system action.", type: 'error' },
+          execution: { success: false, mode: 'strict' }
+        });
+      }
+
+    } catch (error) {
+      console.error("Execution Error:", error);
+      return res.status(500).json({
+        error: 'Execution Failed',
+        details: 'Could not connect to OS Layer or Action Failed.'
       });
-    } else {
-      // TODO: Connect to actual AILLMSystem and AssistantCore
-      return res.status(501).json({ error: 'Live mode not fully implemented yet' });
     }
   } catch (err) {
     console.error(err);
@@ -184,7 +220,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const tokens = jwtService.generateTokenPair(userId, user.email, 'session-1');
 
     // Redirect back to Frontend with Token
-    res.redirect(`http://localhost:3000/?token=${tokens.accessToken}&name=${encodeURIComponent(user.name)}`);
+    res.redirect(`http://localhost:3000/dashboard?token=${tokens.accessToken}&name=${encodeURIComponent(user.name)}`);
 
   } catch (error) {
     console.error('Auth Failed:', error);
@@ -203,7 +239,8 @@ app.post('/api/auth/login', (req, res) => {
 app.listen(PORT, () => {
   console.log(`\n🚀 JARVIS Backend System Online`);
   console.log(`📡 Server listening on port ${PORT}`);
-  console.log(`🛡️  Mode: ${MOCK_MODE ? 'MOCK SYSTEM (Safe)' : 'LIVE SYSTEM (Active)'}\n`);
+  console.log(`🛡️  Mode: ${MOCK_MODE ? 'MOCK SYSTEM (Safe)' : 'LIVE SYSTEM (Active)'}`);
+  console.log(`🔑 Redirect URI: ${process.env.GOOGLE_REDIRECT_URI || 'USING DEFAULT (Review .env)'}\n`);
 });
 
 // Export services for testing if needed

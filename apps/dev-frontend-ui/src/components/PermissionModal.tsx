@@ -12,24 +12,45 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onComplete })
 
     if (!isOpen) return null;
 
+    const savePermission = (key: string, value: boolean) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(key, value.toString());
+            // Dispatch event for other components to update
+            window.dispatchEvent(new Event('storage'));
+        }
+    };
+
     const steps = [
         {
             title: "Voice Access",
-            desc: "Allow Dev to listen and respond.",
+            desc: "Allow Dev to listen and respond via your microphone.",
             icon: <Mic className="w-8 h-8 text-blue-400" />,
             action: async () => {
-                // Mock permission request
-                await new Promise(r => setTimeout(r, 800));
-                setStep(1);
+                try {
+                    await navigator.mediaDevices.getUserMedia({ audio: true });
+                    savePermission('perm_mic', true);
+                    setStep(1);
+                } catch (err) {
+                    console.error("Microphone permission denied:", err);
+                    alert("Microphone access is needed for voice commands. Please allow it in your browser settings.");
+                    savePermission('perm_mic', false);
+                    setStep(1); // Proceed anyway mostly? or block? For now proceed.
+                }
             }
         },
         {
             title: "System Control",
-            desc: "Allow Dev to manage apps and files.",
+            desc: "Allow Dev to manage apps and files (via Local Server).",
             icon: <Shield className="w-8 h-8 text-purple-400" />,
             action: async () => {
-                // Mock permission request
-                await new Promise(r => setTimeout(r, 800));
+                // Since this relies on the backend running locally, we assume "Allow" means the user consents.
+                // In a real browser-only app, this would request File System Access API.
+                // For this hybrid app, it's a consent flag.
+                savePermission('perm_system', true);
+                savePermission('perm_app_automation', true); // Enable automation by default if they agree to system control
+
+                // Add a small delay for UX
+                await new Promise(r => setTimeout(r, 500));
                 onComplete();
             }
         }

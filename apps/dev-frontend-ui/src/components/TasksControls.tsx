@@ -3,6 +3,53 @@ import React from 'react';
 import { Volume2, Wifi, Sun, Command, Play, Power, Lock, Moon } from 'lucide-react';
 
 const TasksControls = () => {
+    const [isListening, setIsListening] = React.useState(false);
+
+    const handleVoiceCommand = () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert("Voice recognition is not supported in this browser.");
+            return;
+        }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onerror = (event: any) => {
+            console.error("Speech recognition error", event.error);
+            setIsListening(false);
+        };
+
+        recognition.onresult = async (event: any) => {
+            const command = event.results[0][0].transcript;
+            console.log("Voice Command:", command);
+
+            // Send to Backend
+            try {
+                const token = localStorage.getItem('dev_token');
+                await fetch('/api/command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ command })
+                });
+                // Find and update command history (mock event for now or rely on global state/swr)
+                window.location.reload(); // Simple reload to show new command in history for MVP
+            } catch (err) {
+                console.error("Failed to send voice command", err);
+            }
+        };
+
+        recognition.start();
+    };
+
     return (
         <div className="flex flex-col gap-6 h-full">
             {/* Quick Actions */}
@@ -17,13 +64,43 @@ const TasksControls = () => {
                         { label: 'Open VS Code', icon: <Command className="w-3 h-3" /> },
                         { label: 'Set Alarm', icon: <Command className="w-3 h-3" /> }
                     ].map((action, i) => (
-                        <button key={i} className="w-full flex items-center justify-between p-3 rounded-lg bg-slate-800/40 hover:bg-slate-700/50 border border-white/5 group transition-all">
+                        <button
+                            key={i}
+                            onClick={async () => {
+                                try {
+                                    const token = localStorage.getItem('dev_token');
+                                    await fetch('/api/command', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${token}`
+                                        },
+                                        body: JSON.stringify({ command: action.label })
+                                    });
+                                    // Feedback (optional, could use toast)
+                                } catch (e) { console.error(e); }
+                            }}
+                            className="w-full flex items-center justify-between p-3 rounded-lg bg-slate-800/40 hover:bg-slate-700/50 border border-white/5 group transition-all active:scale-95"
+                        >
                             <span className="text-sm text-slate-300 group-hover:text-white">{action.label}</span>
                             <div className="text-slate-500 group-hover:text-blue-400">
                                 <Play className="w-3 h-3" />
                             </div>
                         </button>
                     ))}
+
+                    {/* Voice Command Button */}
+                    <button
+                        onClick={handleVoiceCommand}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg border border-white/5 group transition-all ${isListening ? 'bg-red-500/20 border-red-500/50' : 'bg-slate-800/40 hover:bg-slate-700/50'}`}
+                    >
+                        <span className={`text-sm group-hover:text-white ${isListening ? 'text-red-400 animate-pulse' : 'text-slate-300'}`}>
+                            {isListening ? 'Listening...' : 'Voice Command'}
+                        </span>
+                        <div className={`${isListening ? 'text-red-400' : 'text-slate-500'} group-hover:text-blue-400`}>
+                            {isListening ? <Volume2 className="w-3 h-3 animate-ping" /> : <div className="text-xs">🎤</div>}
+                        </div>
+                    </button>
                 </div>
             </div>
 

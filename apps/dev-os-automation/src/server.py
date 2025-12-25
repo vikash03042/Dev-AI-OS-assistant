@@ -58,18 +58,33 @@ def execute_command(req: ExecuteRequest):
             if not valid:
                  return ExecuteResponse(success=False, message=f"Permission Denied: {reason}")
             
+            # Clean app name (remove trailing punctuation like .)
+            import string
+            app_name = app_name.strip(string.punctuation).strip()
+
             # Attempt to launch
             # Common apps mapping
             apps_map = {
                 "chrome": "chrome",
+                "google chrome": "chrome",
                 "notepad": "notepad",
+                "nodepad": "notepad",
                 "calc": "calc",
+                "calculator": "calc",
                 "code": "code",
+                "vs code": "code",
+                "visual studio code": "code",
                 "explorer": "explorer"
             }
             
             target = apps_map.get(app_name.lower(), app_name)
-            os.system(f"start {target}")
+            
+            # Use quotes for start command to handle spaces in target if any, 
+            # though for 'code' it's fine. 'start' treating first quoted arg as title can be tricky.
+            # Using specific shell=True with explicit command string is better or just os.system convention
+            # For Windows 'start', the first quoted string is height title if present.
+            # safe way: start "" "command"
+            os.system(f'start "" "{target}"')
             
             return ExecuteResponse(success=True, message=f"Launched {target}")
 
