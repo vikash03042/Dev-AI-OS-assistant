@@ -68,11 +68,24 @@ class VoiceSystem:
         
         if result.text:
             print(f"💬 Transcription: '{result.text}'")
+            
+            # Send to Backend API
+            try:
+                import requests
+                response = requests.post('http://localhost:3001/api/command', json={'command': result.text})
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    ai_reply = data.get('response', {}).get('text', "I processed that, but have no reply.")
+                    self._respond_to_user(ai_reply)
+                else:
+                    self._respond_to_user("I'm having trouble connecting to the core system.")
+            except Exception as e:
+                print(f"❌ Backend Error: {e}")
+                self._respond_to_user("System offline.")
+
         else:
             print(f"💬 Could not transcribe (confidence: {result.confidence})")
-        
-        # Auto-respond (mock)
-        self._respond_to_user(f"You said: {result.text}")
     
     def _respond_to_user(self, response_text: str):
         """Generate speech response"""

@@ -70,7 +70,10 @@ const JarvisLanding: React.FC<JarvisLandingProps> = ({ onInitialize }) => {
             opacity: 0,
             duration: 1,
             ease: 'power2.in',
-            onComplete: onInitialize
+            onComplete: () => {
+                // Redirect to Google Auth (via Next.js Proxy)
+                window.location.href = '/api/auth/google';
+            }
         });
 
         gsap.to([orbital1Ref.current, orbital2Ref.current], {

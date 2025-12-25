@@ -2,18 +2,20 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load environment variables handled in main.ts
+// dotenv.config();
 
 const connectDB = async () => {
     try {
-        const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dev-ai-os';
+        const mongoURI = process.env.MONGODB_URI;
 
-        await mongoose.connect(mongoURI, {
-            // These options are no longer necessary in Mongoose 6+, but kept for awareness if using older versions
-            // useNewUrlParser: true,
-            // useUnifiedTopology: true,
-        });
+        if (!mongoURI) {
+            throw new Error('MONGODB_URI is not defined in environment variables');
+        }
+
+        console.log(`🔌 Connecting to MongoDB... (URI: ${mongoURI.substring(0, 15)}...)`);
+
+        await mongoose.connect(mongoURI);
 
         console.log('✅ MongoDB Connected Successfully');
     } catch (error) {

@@ -60,8 +60,10 @@ export interface OAuthProfile {
   id: string;
   email: string;
   name: string;
-  photo?: string;
   provider: 'google' | 'github';
+  avatar?: string;
+  // Raw profile data from provider
+  _raw?: any;
 }
 
 export interface CommandLog {

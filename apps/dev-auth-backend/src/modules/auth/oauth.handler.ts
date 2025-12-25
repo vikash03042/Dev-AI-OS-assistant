@@ -66,19 +66,42 @@ export class OAuthHandler {
    * Requirement 2.1: Handle Google callback and token validation
    */
   async handleGoogleCallback(code: string): Promise<OAuthProfile> {
-    // In production, exchange code for token and validate
-    // This is a simplified version
     if (!code) {
       throw new Error('Invalid authorization code');
     }
 
-    // Simulated token exchange and profile fetch
-    return {
-      id: `google_${Math.random().toString(36).substr(2, 9)}`,
-      email: 'user@google.com',
-      name: 'Google User',
-      provider: 'google'
-    };
+    try {
+      const axios = require('axios');
+
+      // 1. Exchange code for tokens
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id: this.googleClientId,
+        client_secret: this.googleClientSecret,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: this.googleRedirectUri
+      });
+
+      const { access_token } = tokenResponse.data;
+
+      // 2. Fetch User Profile
+      const profileResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+
+      const profile = profileResponse.data;
+
+      return {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        provider: 'google',
+        avatar: profile.picture
+      };
+    } catch (error: any) {
+      console.error('Google OAuth Error:', error.response?.data || error.message);
+      throw new Error('Failed to authenticate with Google');
+    }
   }
 
   /**

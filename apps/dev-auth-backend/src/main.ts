@@ -118,7 +118,51 @@ app.post('/api/command', async (req, res) => {
   }
 });
 
-// Auth Routes (Placeholder for now)
+// Initialize OAuth Handler
+const oauthHandler = new OAuthHandler(
+  process.env.GOOGLE_CLIENT_ID || '',
+  process.env.GOOGLE_CLIENT_SECRET || '',
+  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/auth/google/callback',
+  process.env.GITHUB_CLIENT_ID || '',
+  process.env.GITHUB_CLIENT_SECRET || '',
+  process.env.GITHUB_REDIRECT_URI || ''
+);
+
+// Auth Routes
+
+// 1. Google Login - Redirects to Google
+app.get('/api/auth/google', (req, res) => {
+  // Generate state for CSRF protection
+  const state = Math.random().toString(36).substring(7);
+  const url = oauthHandler.generateGoogleAuthUrl(state);
+  res.redirect(url);
+});
+
+// 2. Google Callback - Handles code exchange
+app.get('/api/auth/google/callback', async (req, res) => {
+  const { code } = req.query;
+  try {
+    const profile = await oauthHandler.handleGoogleCallback(code as string);
+    console.log('✅ Google Auth Success:', profile.email);
+
+    // TODO: Create or Update User in DB
+    // const user = await userService.findOrCreate(profile);
+    // For now, assume user-1
+    const userId = profile.id;
+
+    // Generate Tokens
+    const tokens = jwtService.generateTokenPair(userId, profile.email, 'session-1');
+
+    // Redirect back to Frontend with Token
+    res.redirect(`http://localhost:3000/?token=${tokens.accessToken}&name=${encodeURIComponent(profile.name)}`);
+
+  } catch (error) {
+    console.error('Auth Failed:', error);
+    res.redirect('http://localhost:3000?error=auth_failed');
+  }
+});
+
+// Legacy Mock Login (keeping for compatibility)
 app.post('/api/auth/login', (req, res) => {
   // Mock login
   const token = jwtService.generateTokenPair('user-1', 'suvam@dev.ai', 'session-1');

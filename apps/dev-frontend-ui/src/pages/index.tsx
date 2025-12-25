@@ -6,11 +6,31 @@ import CommandHistory from '@/components/CommandHistory';
 import TasksControls from '@/components/TasksControls';
 import ActivityLog from '@/components/ActivityLog';
 import Permissions from '@/components/Permissions';
+import PermissionModal from '@/components/PermissionModal';
 import JarvisLanding from '@/components/JarvisLanding';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export default function Dashboard() {
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showPermissions, setShowPermissions] = useState(false);
+
+  // Check for Auth Token on Load
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const name = params.get('name');
+
+    if (token) {
+      localStorage.setItem('dev_token', token);
+      if (name) localStorage.setItem('dev_user_name', name);
+
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      setIsInitialized(true);
+      setShowPermissions(true); // Trigger Permissions Request after Auth
+    }
+  }, []);
 
   if (!isInitialized) {
     return <JarvisLanding onInitialize={() => setIsInitialized(true)} />;
@@ -18,6 +38,7 @@ export default function Dashboard() {
 
   return (
     <Layout>
+      <PermissionModal isOpen={showPermissions} onComplete={() => setShowPermissions(false)} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
