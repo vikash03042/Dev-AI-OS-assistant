@@ -216,32 +216,33 @@ async def execute_command(req: ExecuteRequest):
             except Exception as e:
                 return ExecuteResponse(success=False, message=f"Volume control failed: {e}")
 
-        elif req.action == "set_mic_mute":
             mute_status = req.params.get("mute", True)
             try:
-                # Get default capture device (Microphone)
                 enumerator = AudioUtilities.GetDeviceEnumerator()
-                # 1 = eCapture
-                # 0 = eConsole (Default Device), 1 = eMultimedia, 2 = eCommunications
-                try:
-                    mic_device = enumerator.GetDefaultAudioEndpoint(1, 0) 
-                except Exception:
-                    # Fallback to Communications device if Console fails
-                    mic_device = enumerator.GetDefaultAudioEndpoint(1, 2)
-
-                interface = mic_device.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-                volume = cast(interface, POINTER(IAudioEndpointVolume))
+                # 1 = eCapture, 1 = DEVICE_STATE_ACTIVE
+                collection = enumerator.EnumAudioEndpoints(1, 1)
+                count = collection.GetCount()
                 
-                volume.SetMute(1 if mute_status else 0, None)
+                muted_count = 0
+                for i in range(count):
+                    endpoint = collection.Item(i)
+                    try:
+                        interface = endpoint.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+                        volume = cast(interface, POINTER(IAudioEndpointVolume))
+                        volume.SetMute(1 if mute_status else 0, None)
+                        muted_count += 1
+                    except Exception as e:
+                        print(f"⚠️ Failed to control mic {i}: {e}")
+
                 state = "muted" if mute_status else "unmuted"
                 
                 await broadcast_activity({
                     "type": "warning" if mute_status else "success",
                     "title": "Mic Status",
-                    "message": f"System microphone {state}"
+                    "message": f"System microphone(s) {state}"
                 })
                 
-                return ExecuteResponse(success=True, message=f"Microphone {state}")
+                return ExecuteResponse(success=True, message=f"{state.capitalize()} {muted_count} active microphone(s)")
             except Exception as e:
                 print(f"❌ Mic Error: {e}")
                 return ExecuteResponse(success=False, message=f"Mic control failed: {e}")

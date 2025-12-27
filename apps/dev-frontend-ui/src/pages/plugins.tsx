@@ -164,11 +164,25 @@ const Plugins = () => {
                                             if (plugin.id === 'github' && plugin.status !== 'connected') {
                                                 const token = localStorage.getItem('dev_token');
                                                 window.location.href = `http://localhost:3001/api/auth/github${token ? `?token=${token}` : ''}`;
+                                            } else if (plugin.id === 'google-cloud') {
+                                                // Mock connection for Google Cloud
+                                                const newStatus = plugin.status === 'connected' ? 'disconnected' : 'connected';
+                                                setIntegrations(prev => prev.map(p =>
+                                                    p.id === 'google-cloud' ? { ...p, status: newStatus, lastSync: newStatus === 'connected' ? 'Just now' : 'Never' } : p
+                                                ));
+                                                if (newStatus === 'connected') {
+                                                    // Show success toast
+                                                    const toast = document.createElement('div');
+                                                    toast.className = 'fixed bottom-10 right-10 bg-cyan-500 text-black px-6 py-3 rounded-xl font-bold shadow-2xl animate-in slide-in-from-bottom-10 fade-in';
+                                                    toast.textContent = 'Google Cloud Connected (Simulation)';
+                                                    document.body.appendChild(toast);
+                                                    setTimeout(() => toast.remove(), 3000);
+                                                }
                                             }
                                         }}
-                                        className="flex-1 py-4 bg-white text-black rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                                        className={`flex-1 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform ${plugin.status === 'connected' ? 'bg-slate-800 text-white border border-white/10' : 'bg-white text-black'}`}
                                     >
-                                        {plugin.status === 'connected' ? 'Settings' : 'Connect Account'} <ExternalLink className="w-4 h-4" />
+                                        {plugin.status === 'connected' ? 'Manage' : 'Connect Account'} <ExternalLink className="w-4 h-4" />
                                     </button>
                                     <button className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors">
                                         <Shield className="w-5 h-5 text-slate-400" />

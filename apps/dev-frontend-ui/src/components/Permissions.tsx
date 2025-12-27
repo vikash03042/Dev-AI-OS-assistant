@@ -25,11 +25,19 @@ const Permissions = () => {
         return () => window.removeEventListener('storage', loadPerms);
     }, []);
 
+    const togglePerm = (key: string) => {
+        const newVal = !perms[key as keyof typeof perms];
+        setPerms(prev => ({ ...prev, [key]: newVal }));
+        localStorage.setItem(key, String(newVal));
+        // Dispatch storage event so PermissionModal and others stay in sync
+        window.dispatchEvent(new Event('storage'));
+    };
+
     const permissions = [
-        { name: "Pipeline", icon: <Globe className="w-4 h-4 text-blue-400" />, status: true }, // Always true for now (web)
-        { name: "File Access", icon: <FileText className="w-4 h-4 text-orange-400" />, status: perms.system },
-        { name: "App Automation", icon: <Cpu className="w-4 h-4 text-purple-400" />, status: perms.automation },
-        { name: "Voice Control", icon: <Shield className="w-4 h-4 text-green-400" />, status: perms.mic }
+        { key: 'pipeline', name: "Pipeline", icon: <Globe className="w-4 h-4 text-blue-400" />, status: true, locked: true }, // Always true for now (web)
+        { key: 'perm_system', name: "File Access", icon: <FileText className="w-4 h-4 text-orange-400" />, status: perms.system },
+        { key: 'perm_app_automation', name: "App Automation", icon: <Cpu className="w-4 h-4 text-purple-400" />, status: perms.automation },
+        { key: 'perm_mic', name: "Voice Control", icon: <Shield className="w-4 h-4 text-green-400" />, status: perms.mic }
     ];
 
     return (
@@ -43,15 +51,19 @@ const Permissions = () => {
 
             <div className="space-y-4">
                 {permissions.map((perm, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 rounded-xl bg-slate-800/40 border border-white/5 hover:bg-slate-800/60 transition-colors">
+                    <div
+                        key={index}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${perm.locked ? 'bg-slate-900/40 border-white/5 opacity-60 cursor-not-allowed' : 'bg-slate-800/40 border-white/5 hover:bg-slate-800/60 cursor-pointer'}`}
+                        onClick={() => !perm.locked && togglePerm(perm.key)}
+                    >
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-slate-900 border border-white/5">
                                 {perm.icon}
                             </div>
                             <span className="font-medium text-slate-200">{perm.name}</span>
                         </div>
-                        <div className={`cursor-pointer ${perm.status ? 'text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)] rounded-full' : 'text-slate-600'}`}>
-                            <ToggleRight className={`w-8 h-8 ${perm.status ? 'fill-current' : ''}`} />
+                        <div className={`${perm.status ? 'text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)] rounded-full' : 'text-slate-600'}`}>
+                            <ToggleRight className={`w-8 h-8 transition-all ${perm.status ? 'fill-current rotate-0' : 'rotate-180 opacity-50'}`} />
                         </div>
                     </div>
                 ))}
